@@ -1,0 +1,68 @@
+"Phrases"
+{
+	"LoginMessage"
+	{
+		"#format"	"{1:s},{2:i},{3:i},{4:i}"
+		"pt"				"{red}[Rank] {default} Bem-vindo {red}{1}, {default}você jogou nesse servidor por {2} dias {3} horas e {4} minutos."
+	}
+	
+	"SeeOtherPlayer"
+	{
+		"#format"		"{1:s},{2:i},{3:i},{4:i},{5:i}"
+		"pt"  			"{1} jogou por {2}M {3}d {4}h {5}m"
+	}
+
+	"WelcomeMonths"
+	{
+		"#format" 		"{1:s},{2:i},{3:i},{4:i},{5:i}"
+		"pt"  			"Bem-vindo {1}, você jogou por {2}M {3}d {4}h {5}m"
+	}
+
+	"WelcomeDays"
+	{
+		"#format" 	"{1:s},{2:i},{3:i},{4:i}"
+		"pt"  			"Bem-vindo {1}, você jogou por {2}d {3}h {4}m"
+	}
+	
+	"Score"
+	{
+		"#format"		"{1:i},{2:i}"
+		"pt"				"Pontuação: {1} (+{2})"
+	}
+	
+	"SessionScore"
+	{
+		"#format"		"{1:i},{2:i}"
+		"pt"				"{lightgreen}[Score] {default}Pontuação do {olive}jogador{default}: {1} + {olive}{2}"
+	}
+	
+	"CommonKilled"
+	{
+		"#format"		"{1:i}"
+		"pt"				"Comuns mortos: {1}"
+	}
+	
+	"SpecialKilled"
+	{
+		"#format"		"{1:i}"
+		"pt"				"Especiais mortos: {1}"
+	}
+	
+	"Headshots"
+	{
+		"#format"		"{1:i}"
+		"pt"				"Tiros na cabeça: {1}"
+	}
+	
+	"HeadshotsPerKill"
+	{
+		"#format"		"{1:.2f}"
+		"pt"				"Tiros na cabeça por morte: {1}"
+	}
+	
+	"HeadshotDamage"
+	{
+		"#format"		"{1:i}"
+		"pt"				"Dano total na cabeça: {1}"
+	}
+}
