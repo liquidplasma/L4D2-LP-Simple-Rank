@@ -56,8 +56,8 @@
 	
 	"HeadshotsPerKill"
 	{
-		"#format"		"{1:.2f}"
-		"pt"				"Tiros na cabeça por morte: {1}"
+		"#format"		"{1:.1f}"
+		"pt"				"Precisão de tiro na cabeça: {1}%"
 	}
 	
 	"HeadshotDamage"

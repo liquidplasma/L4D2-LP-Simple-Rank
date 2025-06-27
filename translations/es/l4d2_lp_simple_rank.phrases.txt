@@ -3,66 +3,66 @@
 	"LoginMessage"
 	{
 		"#format"	"{1:s},{2:i},{3:i},{4:i}"
-		"en"				"{red}[Rank] {default} Welcome {red}{1}, {default}you played on this server for {2} days {3} hours and {4} minutes." 
+		"es"				"{red}[Rank] {default} Bienvenido {red}{1}, {default}has jugado en estos servidores durante {2} días {3} horas y {4} minutos."
 	}
 	
 	"SeeOtherPlayer"
 	{
 		"#format"		"{1:s},{2:i},{3:i},{4:i},{5:i}"
-		"en"  			"{1} played for {2}M {3}d {4}h {5}m"
+		"es"  			"{1} ha jugado {2}M {3}d {4}h {5}m"
 	}
 
 	"WelcomeMonths"
 	{
 		"#format" 		"{1:s},{2:i},{3:i},{4:i},{5:i}"
-		"en"  			"Welcome {1}, you played for {2}M {3}d {4}h {5}m"
+		"es"  			"Bienvenido {1}, has jugado durante {2}M {3}d {4}h {5}m"
 	}
 
 	"WelcomeDays"
 	{
 		"#format" 	"{1:s},{2:i},{3:i},{4:i}"
-		"en"  			"Welcome {1}, you played for {2}d {3}h {4}m"
+		"es"  			"Bienvenido {1}, has jugado durante {2}d {3}h {4}m"
 	}
 	
 	"Score"
 	{
 		"#format"		"{1:i},{2:i}"
-		"en"				"Score: {1} (+{2})"
+		"es"				"Puntuación: {1} (+{2})"
 	}
 	
 	"SessionScore"
 	{
 		"#format"		"{1:i},{2:i}"
-		"es"				"{lightgreen}[Score] {olive}Player{default} score: {1} + {olive}{2}"
+		"es"				"{lightgreen}[Score] {default}Puntuación del {olive}jugador{default}: {1} + {olive}{2}"
 	}
 	
 	"CommonKilled"
 	{
 		"#format"		"{1:i}"
-		"en"				"Common infected killed: {1}"
+		"es"				"Infectados comunes muertos: {1}"
 	}
 	
 	"SpecialKilled"
 	{
 		"#format"		"{1:i}"
-		"en"				"Special infected killed: {1}"
+		"es"				"Infectados especiales muertos: {1}"
 	}
 	
 	"Headshots"
 	{
 		"#format"		"{1:i}"
-		"en"				"Headshots: {1}"
+		"es"				"Tiros en la cabeza: {1}"
 	}
 	
 	"HeadshotsPerKill"
 	{
-		"#format"		"{1:.2f}"
-		"en"				"Headshot per kill: {1}"
+		"#format"		"{1:.1f}"
+		"es"				"Precisión de tiro en la cabeza: {1}%"
 	}
 	
-	"HeadshotDamage"
+	"HeadshotDamageF"
 	{
 		"#format"		"{1:i}"
-		"en"				"Total headshot damage: {1}"
+		"es"				"Daño total en la cabeza: {1}"
 	}
 }

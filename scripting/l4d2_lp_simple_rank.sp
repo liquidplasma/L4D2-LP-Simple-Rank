@@ -579,7 +579,7 @@ public Action RankMenu(int client, int args)
     Format(menuBuffer, sizeof(menuBuffer), "%T", "Headshots", client, PlayerStats[client].Headshots);
     rankMenu.AddItem("Headshots", menuBuffer, ITEMDRAW_DISABLED);
 
-    float headshotsPerKill = float(PlayerStats[client].Headshots) / float((PlayerStats[client].SIKills + PlayerStats[client].CIKills));
+    float headshotsPerKill = float(PlayerStats[client].Headshots) / float((PlayerStats[client].SIKills + PlayerStats[client].CIKills)) * 100.0;
     Format(menuBuffer, sizeof(menuBuffer), "%T", "HeadshotsPerKill", client, headshotsPerKill);
     rankMenu.AddItem("HeadshotsPerKill", menuBuffer, ITEMDRAW_DISABLED);
 
