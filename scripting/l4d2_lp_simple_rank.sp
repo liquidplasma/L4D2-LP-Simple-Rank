@@ -59,6 +59,13 @@ enum struct Stats
 }
 Stats PlayerStats[MAXPLAYERS + 1];
 
+enum struct SIKills
+{
+    int Kills[9];
+    int Damage[9];
+}
+SIKills PlayerDamage[MAXPLAYERS + 1];
+
 //
 ConVar cCommonInfectedMult, cSpecialInfectedMult, cHeadshotMult, cHeadshotDamageQuotient;
 float fCommonInfectedMult, fSpecialInfectedMult, fHeadshotMult, fHeadshotDamageQuotient;
@@ -421,10 +428,11 @@ public void PlayerDeathEvent(Event event, const char[] name, bool dontBroadcast)
     int victim = GetClientOfUserId(event.GetInt("userid"));
     int attacker = GetClientOfUserId(event.GetInt("attacker"));
     bool headshot = event.GetBool("headshot");
-    if (!IsValidClient(attacker) || !IsValidClient(victim) || IsFakeClient(attacker))
+    if (!OnSurvivorTeam(attacker) || !OnInfectedTeam(victim) || IsFakeClient(attacker))
         return;
-    if (!OnSurvivorTeam(attacker) || !OnInfectedTeam(victim))
-        return;
+
+    //L4D2ZombieClassType SIClass = L4D2_GetPlayerZombieClass(victim);
+    //PlayerDamage[attacker].Kills[SIClass]++;
 
     if (headshot)
         PlayerStats[attacker].Headshots++;
@@ -437,10 +445,11 @@ public void PlayerHurtEvent(Event event, const char[] name, bool dontBroadcast)
     int attacker = GetClientOfUserId(event.GetInt("attacker"));
     int damage = event.GetInt("dmg_health");
     bool headshot = event.GetInt("hitgroup") == HITGROUP_HEAD;
-    if (!IsValidClient(attacker) || !IsValidClient(victim) || IsFakeClient(attacker))
+    if (!OnSurvivorTeam(attacker) || !OnInfectedTeam(victim) || IsFakeClient(attacker))
         return;
-    if (!OnSurvivorTeam(attacker) || !OnInfectedTeam(victim))
-        return;
+
+    //L4D2ZombieClassType SIClass = L4D2_GetPlayerZombieClass(victim);
+    //PlayerDamage[attacker].Damage[SIClass] += damage;
 
     if (headshot)
         PlayerStats[attacker].HeadshotDamage += damage;
