@@ -59,12 +59,19 @@ enum struct Stats
 }
 Stats PlayerStats[MAXPLAYERS + 1];
 
+
 enum struct SIKills
 {
     int Kills[9];
     int Damage[9];
 }
-SIKills PlayerDamage[MAXPLAYERS + 1];
+enum SIArrayType
+{
+    KillsType = 1,
+    DamageType
+}
+SIKills PlayerSIStats[MAXPLAYERS + 1];
+
 
 //
 ConVar cCommonInfectedMult, cSpecialInfectedMult, cHeadshotMult, cHeadshotDamageQuotient;
@@ -128,7 +135,7 @@ public void OnPluginStart()
 
 public bool InitDB()
 {
-    static char error[255];
+    char error[255];
     rankDB = SQLite_UseDatabase("lp_simple_rank_db", error, sizeof(error));
     if (rankDB == INVALID_HANDLE)
     {
@@ -136,6 +143,9 @@ public bool InitDB()
         return false;
     }
     SQL_FastQuery(rankDB, "CREATE TABLE IF NOT EXISTS lp_simple_rank (steamid TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, CIKills INTEGER, SIKills INTEGER, Headshots INTEGER, HeadshotDamage INT, Score INT);");
+    SQL_FastQuery(rankDB, "CREATE TABLE IF NOT EXISTS lp_simple_rank_sikills (id INTEGER PRIMARY KEY AUTOINCREMENT, steamid TEXT NOT NULL, array_type INTEGER, zombie_class INTEGER, value INTEGER, FOREIGN KEY(steamid) REFERENCES lp_simple_rank(steamid));");
+    SQL_FastQuery(rankDB, "CREATE INDEX IF NOT EXISTS idx_steamid ON lp_simple_rank_sikills(steamid);");
+    SQL_FastQuery(rankDB, "CREATE INDEX IF NOT EXISTS idx_steamid_arraytype ON lp_simple_rank_sikills(steamid, array_type);");
     //CheckForColumn("PlayTime", "INTEGER DEFAULT 0");
     return true;
 }
@@ -196,7 +206,7 @@ void PlayerCountCallback(Handle db, Handle query, const char[] error, any data)
 {
     strcopy(ColumnName, sizeof(ColumnName), columnName)
     strcopy(ColumnDataType, sizeof(ColumnDataType), columnDataType);
-    static char query[64];
+    char query[64];
     rankDB.Format(query, sizeof(query), "PRAGMA table_info(lp_simple_rank);");
     SQL_TQuery(rankDB, AddColumn, query);
 }
@@ -205,7 +215,7 @@ void AddColumn(Handle db, Handle query, const char[] error, any data)
 {
     if (StrEqual(error, ""))
     {
-        static char colName[64];
+        char colName[64];
         bool columnExists = false;
         while (SQL_FetchRow(query))
         {
@@ -219,7 +229,7 @@ void AddColumn(Handle db, Handle query, const char[] error, any data)
 
         if (!columnExists)
         {
-            static char fastQuery[96];
+            char fastQuery[96];
             rankDB.Format(fastQuery, sizeof(fastQuery), "ALTER TABLE lp_simple_rank ADD COLUMN %s %s;", ColumnName, ColumnDataType);
             LogMessage("Added column %s successfully", ColumnName);
             SQL_FastQuery(rankDB, fastQuery);
@@ -240,7 +250,7 @@ public void CheckAndUpdateName(int client)
     }
 
     PlayerStats[client].AllowedToSave = true;
-    static char query[256];
+    char query[256];
     rankDB.Format(query, sizeof(query), "SELECT name FROM lp_simple_rank WHERE steamid = '%s';", PlayerStats[client].SteamID);
     SQL_TQuery(rankDB, CheckNameCallback, query, client);
 }
@@ -252,8 +262,8 @@ public void CheckNameCallback(Handle db, Handle query, const char[] error, any d
     if (!IsValidClient(client))
         return;
 
-    static char oldName[MAX_NAME_LENGTH];
-    static char newName[MAX_NAME_LENGTH];
+    char oldName[MAX_NAME_LENGTH];
+    char newName[MAX_NAME_LENGTH];
 
     if (StrEqual(error, ""))
     {
@@ -268,7 +278,7 @@ public void CheckNameCallback(Handle db, Handle query, const char[] error, any d
             if (strcmp(oldName, newName) != 0)
             {
                 // Name has changed, update it
-                static char updateQuery[256];
+                char updateQuery[256];
                 rankDB.Format(updateQuery, sizeof(updateQuery), "UPDATE lp_simple_rank SET name = '%s' WHERE steamid = '%s';", newName, PlayerStats[client].SteamID);
                 SQL_TQuery(rankDB, SQLErrorCallBack, updateQuery);
             }
@@ -277,7 +287,7 @@ public void CheckNameCallback(Handle db, Handle query, const char[] error, any d
         {
             // If steamid does not exist, insert the new record
             GetClientName(client, newName, sizeof(newName));
-            static char insertQuery[256];
+            char insertQuery[256];
             rankDB.Format(insertQuery, sizeof(insertQuery), "INSERT OR REPLACE INTO lp_simple_rank (steamid, name) VALUES ('%s', '%s')", PlayerStats[client].SteamID, newName);
             SQL_TQuery(rankDB, SQLErrorCallBack, insertQuery);
         }
@@ -292,7 +302,7 @@ public void SaveStats(int client)
     if (!PlayerStats[client].AllowedToSave)
         return;
 
-    static char query[320];
+    char query[320], siQuery[320];
 
     int score = CalculateScore(client);
     int sessionTime = CalculateSessionTime(client);
@@ -306,25 +316,81 @@ public void SaveStats(int client)
             sessionTime,
             PlayerStats[client].SteamID);
     SQL_TQuery(rankDB, SQLErrorCallBack, query);
+
+    for (int array_type = 1; array_type <= 2; array_type++)
+    {
+        for (int zombie_class = 1; zombie_class <= 8; zombie_class++)
+        {
+            if (view_as<L4D2ZombieClassType>(zombie_class) == L4D2ZombieClass_Witch) // Ignore witch
+                continue;
+
+            int value = (array_type == 1) ? PlayerSIStats[client].Kills[zombie_class] : PlayerSIStats[client].Damage[zombie_class];
+
+            rankDB.Format(siQuery, sizeof(siQuery),
+                "INSERT OR REPLACE INTO lp_simple_rank_sikills (steamid, array_type, zombie_class, value) VALUES ('%s', %i, %i, %i);",
+                PlayerStats[client].SteamID, array_type, zombie_class, value);
+
+            SQL_FastQuery(rankDB, siQuery);
+        }
+    }
 }
 
 // Loads a client stats
 public void LoadStats(int client)
 {
-    static char query[320];
+    char query[320], siQuery[320];
 
     rankDB.Format(query, sizeof(query),
            "SELECT CIKills, SIKills, Headshots, HeadshotDamage, PlayTime FROM lp_simple_rank WHERE steamid = '%s';",
            PlayerStats[client].SteamID);
-    SQL_TQuery(rankDB, LoadStatsCallback, query, client);
+    SQL_TQuery(rankDB, LoadMainStatsCallback, query, client);
+
+    for (int i = 1; i <= 2; i++)
+    {
+        DataPack pack = new DataPack();
+        pack.WriteCell(client);
+        pack.WriteCell(i);
+        pack.Reset();
+
+        rankDB.Format(siQuery, sizeof(siQuery), "SELECT zombie_class, value FROM lp_simple_rank_sikills WHERE steamid = '%s' AND array_type = '%i' ORDER BY zombie_class;", PlayerStats[client].SteamID, i);
+        SQL_TQuery(rankDB, LoadSiKillsCallback, siQuery, pack);
+    }
 
     // Announce message
     if (bAnnouncePlayTime)
         CreateTimer(5.0, PrintPlayTime, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 }
 
-// Callback function to handle the query result
-public void LoadStatsCallback(Handle db, Handle query, const char[] error, any data)
+public void LoadSiKillsCallback(Handle db, Handle query, const char[] error, DataPack pack)
+{
+    int client = pack.ReadCell();
+    SIArrayType array_type = pack.ReadCell();
+    delete pack;
+
+    if (query == null)
+    {
+        LogError("LoadSiKillsCallback failed: %s", error);
+        return;
+    }
+
+    while (SQL_FetchRow(query))
+    {
+        L4D2ZombieClassType zombie_class = view_as<L4D2ZombieClassType>(SQL_FetchInt(query, 0));
+        if (zombie_class == L4D2ZombieClass_Witch) // Ignore witch
+            continue;
+
+        int value = SQL_FetchInt(query, 1);
+        switch (array_type)
+        {
+            case KillsType:
+                PlayerSIStats[client].Kills[zombie_class] = value;
+            case DamageType:
+                PlayerSIStats[client].Damage[zombie_class] = value;
+        }
+    }
+}
+
+public void LoadMainStatsCallback(Handle db, Handle query, const char[] error, any data)
 {
     int client = data;
     if (!IsValidClient(client))
@@ -365,8 +431,8 @@ public Action PrintPlayTime(Handle timer, int userid)
     if (!IsValidClient(client))
         return Plugin_Stop;
 
-    static char buffer[256];
-    static char playerName[MAX_NAME_LENGTH];
+    char buffer[256];
+    char playerName[MAX_NAME_LENGTH];
     GetClientName(client, playerName, sizeof(playerName));
     FormatPlayTime(client, PlayerStats[client].PlayTime, buffer, sizeof(buffer), playerName, false, true);
     CPrintToChat(client, buffer);
@@ -431,8 +497,9 @@ public void PlayerDeathEvent(Event event, const char[] name, bool dontBroadcast)
     if (!OnSurvivorTeam(attacker) || !OnInfectedTeam(victim) || IsFakeClient(attacker))
         return;
 
-    //L4D2ZombieClassType SIClass = L4D2_GetPlayerZombieClass(victim);
-    //PlayerDamage[attacker].Kills[SIClass]++;
+    L4D2ZombieClassType SIClass = L4D2_GetPlayerZombieClass(victim);
+    if (SIClass != L4D2ZombieClass_NotInfected)
+        PlayerSIStats[attacker].Kills[SIClass]++;
 
     if (headshot)
         PlayerStats[attacker].Headshots++;
@@ -448,8 +515,18 @@ public void PlayerHurtEvent(Event event, const char[] name, bool dontBroadcast)
     if (!OnSurvivorTeam(attacker) || !OnInfectedTeam(victim) || IsFakeClient(attacker))
         return;
 
-    //L4D2ZombieClassType SIClass = L4D2_GetPlayerZombieClass(victim);
-    //PlayerDamage[attacker].Damage[SIClass] += damage;
+    L4D2ZombieClassType SIClass = L4D2_GetPlayerZombieClass(victim);
+    if (SIClass != L4D2ZombieClass_NotInfected)
+    {
+        if (SIClass == L4D2ZombieClass_Tank && L4D_IsPlayerIncapacitated(victim))
+            return;
+
+        int health = GetClientHealth(victim);
+        if (health < 0)
+            damage -= -health;
+
+        PlayerSIStats[attacker].Damage[SIClass] += damage;
+    }
 
     if (headshot)
         PlayerStats[attacker].HeadshotDamage += damage;
@@ -472,7 +549,7 @@ public void InfectedDeathEvent(Event event, const char[] name, bool dontBroadcas
 
 public void MapTransition(Event event, const char[] name, bool dontBroadcast)
 {
-    static char message[128];
+    char message[128];
     for (int i = 1; i <= MaxClients; i++)
     {
         if (!IsValidClient(i) || IsFakeClient(i) || !OnSurvivorTeam(i))
@@ -500,7 +577,7 @@ public Action CleanLowScoresCMD(int client, int args)
         ReplyToCommand(client, "Argument must be 0 or higher");
         return Plugin_Handled;
     }
-    static char timeBuffer[32];
+    char timeBuffer[32];
     FormatTime(timeBuffer, sizeof(timeBuffer), NULL_STRING, GetTime());
     if (client == 0) // Server console, rcon, etc
     {
@@ -508,7 +585,7 @@ public Action CleanLowScoresCMD(int client, int args)
         LogMessage("CONSOLE cleared scores below %i on %s", floor, timeBuffer);
         return Plugin_Handled;
     }
-    static char steamid[20];
+    char steamid[20];
     if (GetClientAuthId(client, AuthId_Steam2, steamid, sizeof(steamid)))
     {
         ReplyToCommand(client, "%N [%s] cleared scores below %i on %s", client, steamid, floor, timeBuffer);
@@ -531,7 +608,7 @@ public Action WipeDB(int client, int args)
         ReplyToCommand(client, "Usage: sm_lp_wipe <password defined in plugin source>");
         return Plugin_Handled;
     }
-    static char cmdBuffer[32];
+    char cmdBuffer[32];
     GetCmdArgString(cmdBuffer, sizeof(cmdBuffer));
     if (!StrEqual(cmdBuffer, WIPE_PASSWORD))
     {
@@ -539,10 +616,10 @@ public Action WipeDB(int client, int args)
         ReplyToCommand(client, "Usage: sm_lp_wipe <password defined in plugin source>");
         return Plugin_Handled;
     }
-    static char steamid[20];
+    char steamid[20];
     if (GetClientAuthId(client, AuthId_Steam2, steamid, sizeof(steamid)))
     {
-        static char timeBuffer[32];
+        char timeBuffer[32];
         FormatTime(timeBuffer, sizeof(timeBuffer), NULL_STRING, GetTime());
         LogMessage("%N [%s] wiped database on %s", client, steamid, timeBuffer);
         WipeDatabase();
@@ -556,10 +633,16 @@ public Action RankMenu(int client, int args)
     if (!client)
         return Plugin_Handled;
 
+    RankMenuDisplay(client);
+    return Plugin_Handled;
+}
+
+void RankMenuDisplay(int client)
+{
     Menu rankMenu = new Menu(RankMenuHandler);
-    static char menuBuffer[96];
-    static char playerName[MAX_NAME_LENGTH];
-    static char formattedPlayTime[128];
+    char menuBuffer[96];
+    char playerName[MAX_NAME_LENGTH];
+    char formattedPlayTime[128];
     GetClientName(client, playerName, sizeof(playerName));
     FormatPlayTime(client, PlayerStats[client].PlayTime, formattedPlayTime, sizeof(formattedPlayTime), playerName);
 
@@ -574,7 +657,7 @@ public Action RankMenu(int client, int args)
     rankMenu.AddItem("CIKills", menuBuffer, ITEMDRAW_DISABLED);
 
     Format(menuBuffer, sizeof(menuBuffer), "%T", "SpecialKilled", client, PlayerStats[client].SIKills);
-    rankMenu.AddItem("SIKills", menuBuffer, ITEMDRAW_DISABLED);
+    rankMenu.AddItem("SIKills", menuBuffer, ITEMDRAW_DEFAULT);
 
     Format(menuBuffer, sizeof(menuBuffer), "%T", "Headshots", client, PlayerStats[client].Headshots);
     rankMenu.AddItem("Headshots", menuBuffer, ITEMDRAW_DISABLED);
@@ -587,7 +670,6 @@ public Action RankMenu(int client, int args)
     rankMenu.AddItem("HeadshotDamage", menuBuffer, ITEMDRAW_DISABLED);
 
     rankMenu.Display(client, MENU_TIME_FOREVER);
-    return Plugin_Handled;
 }
 
 public Action Top10Menu(int client, int args)
@@ -603,8 +685,53 @@ public int RankMenuHandler(Menu menu, MenuAction action, int param1, int param2)
 {
     switch (action)
     {
+        case MenuAction_Select:
+        {
+            char info[32];
+            menu.GetItem(param2, info, sizeof(info))
+            if (StrEqual(info, "SIKills"))
+                SIStatsMenu(param1);
+        }
         case MenuAction_End:
             delete menu;
+    }
+    return 0;
+}
+
+public void SIStatsMenu(int client)
+{
+    char info[64], infectedName[16], menuBuffer[64];
+
+    Menu siStatsMenu = new Menu(SIStatsMenuHandler);
+    siStatsMenu.SetTitle("%T", "SIStatsMenu", client);
+    for (int i = 1; i <= 8; i++)
+    {
+        if (i == 7) // Ignore witch
+            continue;
+
+        int arrayIndex = i - 1;
+        strcopy(infectedName, sizeof(infectedName), L4D2ZombieClassname[arrayIndex]);
+        infectedName[0] = CharToUpper(infectedName[0]);
+        strcopy(info, sizeof(info), infectedName);
+
+        Format(menuBuffer, sizeof(menuBuffer), "[%s]: %i | Damage: %i", infectedName, PlayerSIStats[client].Kills[i], PlayerSIStats[client].Damage[i]);
+        siStatsMenu.AddItem(info, menuBuffer, ITEMDRAW_DISABLED);
+    }
+    siStatsMenu.ExitBackButton = true;
+    siStatsMenu.Display(client, MENU_TIME_FOREVER);
+}
+
+int SIStatsMenuHandler(Menu menu, MenuAction action, int param1, int param2)
+{
+    switch (action)
+    {
+        case MenuAction_Cancel:
+        {
+            int client = param1;
+            int endReason = param2;
+            if (endReason == MenuCancel_ExitBack)
+                RankMenuDisplay(client);
+        }
     }
     return 0;
 }
@@ -614,7 +741,7 @@ public int RankMenuHandler(Menu menu, MenuAction action, int param1, int param2)
  */
 public void GetTop10(int client)
 {
-    static char query[96];
+    char query[96];
 
     rankDB.Format(query, sizeof(query), "SELECT steamid, name, Score FROM lp_simple_rank ORDER BY Score DESC LIMIT 10;");
     SQL_TQuery(rankDB, Top10Callback, query, client);
@@ -655,8 +782,8 @@ public void Top10Callback(Handle db, Handle query, const char[] error, any data)
  */
 public void Top10MenuShow(int client)
 {
-    static char menuBuffer[64];
-    static char info[64];
+    char menuBuffer[64];
+    char info[64];
     Menu top10Menu = new Menu(Top10MenuHandler);
     top10Menu.SetTitle("     - Top 10 Players -     ");
 
@@ -691,7 +818,7 @@ public int Top10MenuHandler(Menu menu, MenuAction action, int param1, int param2
 
 public void GetRankFromTop10(int client, int selectedPlayer)
 {
-    static char query[320];
+    char query[320];
     rankDB.Format(query, sizeof(query), "SELECT name, CIKills, SIKills, Headshots, HeadshotDamage, Score, PlayTime FROM lp_simple_rank WHERE steamid = '%s';", Top10SteamID[selectedPlayer]);
     SQL_TQuery(rankDB, RankTop10PrintMenu, query, client);
 }
@@ -703,7 +830,7 @@ public void RankTop10PrintMenu(Handle db, Handle query, const char[] error, any 
     {
         if (SQL_HasResultSet(query) && SQL_FetchRow(query))
         {
-            static char playerName[MAX_NAME_LENGTH];
+            char playerName[MAX_NAME_LENGTH];
             int ciKills = SQL_FetchInt(query, 1);
             int siKills = SQL_FetchInt(query, 2);
             int headshots = SQL_FetchInt(query, 3);
@@ -716,18 +843,15 @@ public void RankTop10PrintMenu(Handle db, Handle query, const char[] error, any 
         }
     }
     else
-    {
-        // Handle SQL error
         LogError("SQL Error in RankTop10PrintMenu callback: %s", error);
-    }
 }
 
 // Show a players stats from the top10 menu
 public void RankTop10MenuShow(char[] playerName, int client, int ciKills, int siKills, int headshots, int headshotdamage, int score, int playtime)
 {
     Menu rankTop10Choice = new Menu(SpecificPlayerMenu);
-    static char formattedTime[128];
-    static char menuBuffer[96];
+    char formattedTime[128];
+    char menuBuffer[96];
     FormatPlayTime(client, playtime, formattedTime, sizeof(formattedTime), playerName, true);
     rankTop10Choice.SetTitle(formattedTime);
 
@@ -784,7 +908,7 @@ public void WipeDatabase()
 
         PlayerStats[i].CIKills = PlayerStats[i].SIKills = PlayerStats[i].Headshots = PlayerStats[i].HeadshotDamage = 0;
     }
-    static char query[136];
+    char query[136];
     rankDB.Format(query, sizeof(query), "UPDATE lp_simple_rank SET CIKills = 0, SIKills = 0, Headshots = 0, HeadshotDamage = 0, Score = 0 WHERE steamid IS NOT NULL;");
     SQL_TQuery(rankDB, WipeDatabaseCallback, query);
 }
@@ -803,8 +927,8 @@ public void WipeDatabaseCallback(Handle db, Handle query, const char[] error, an
 
 public void CleanLowScores(int minScore)
 {
-    static char query[96];
-    rankDB.Format(query, sizeof(query), "DELETE FROM lp_simple_rank WHERE Score < %d;", minScore);
+    char query[96];
+    rankDB.Format(query, sizeof(query), "DELETE FROM lp_simple_rank WHERE Score < %d OR Score IS NULL;", minScore);
     SQL_TQuery(rankDB, CleanLowScoresCallback, query);
 }
 

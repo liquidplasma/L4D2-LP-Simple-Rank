@@ -65,4 +65,9 @@
 		"#format"		"{1:i}"
 		"es"				"Daño total en la cabeza: {1}"
 	}
+	
+	"SIStatsMenu"
+	{
+		"es"				"Estadísticas especiales"	
+	}
 }

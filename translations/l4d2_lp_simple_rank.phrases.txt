@@ -65,4 +65,9 @@
 		"#format"		"{1:i}"
 		"en"				"Total headshot damage: {1}"
 	}
+	
+	"SIStatsMenu"
+	{
+		"en"				"Special infected stats"	
+	}
 }

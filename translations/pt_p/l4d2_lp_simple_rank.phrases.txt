@@ -65,4 +65,9 @@
 		"#format"		"{1:i}"
 		"pt_p"				"Dano total na cabeça: {1}"
 	}
+	
+	"SIStatsMenu"
+	{
+		"pt_p"				"Estatísticas dos especiais"	
+	}
 }
